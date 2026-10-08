@@ -3,15 +3,14 @@ package com.example.delivery.auth.controller;
 import com.example.delivery.auth.dto.LoginRequest;
 import com.example.delivery.auth.dto.LoginResult;
 import com.example.delivery.auth.service.AuthService;
-import com.example.delivery.global.config.SecurityConfig;
 import com.example.delivery.global.exception.BusinessException;
 import com.example.delivery.global.exception.ErrorCode;
 import com.example.delivery.global.security.JwtProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -24,12 +23,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(AuthController.class)
-@Import(SecurityConfig.class)
+@AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
 
     private static final String LOGIN_URL = "/api/auth/login";
@@ -44,7 +41,7 @@ class AuthControllerTest {
     JwtProvider jwtProvider;
 
     @Test
-    @DisplayName("올바른 요청으로 로그인하면, 인증 없이 200을 받고 Access Token은 body로, Refresh Token은 HttpOnly 쿠키로 전달된다")
+    @DisplayName("올바른 요청으로 로그인하면, 200을 받고 Access Token은 body로, Refresh Token은 HttpOnly 쿠키로 전달된다")
     void login_success() throws Exception {
         // given
         String body = """
