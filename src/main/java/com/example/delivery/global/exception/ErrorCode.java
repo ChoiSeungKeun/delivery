@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
     // 회원
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "U001", "이미 사용 중인 아이디입니다."),
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "U002", "아이디 또는 비밀번호가 올바르지 않습니다."),
+    DELETED_USER(HttpStatus.FORBIDDEN, "U003", "탈퇴한 회원입니다."),
 
     // 공통
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "C001", "요청 값이 올바르지 않습니다."),

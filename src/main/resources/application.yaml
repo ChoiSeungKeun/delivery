@@ -16,3 +16,8 @@ spring:
         format_sql: true
         jdbc:
           time_zone: Asia/Seoul
+
+jwt:
+  secret-key: ZR1oEz01qa7AKFzCfLoS8SnUvDxdNvY1GkuzJit51CB
+  access-token-expiration: 30m
+  refresh-token-expiration: 14d
