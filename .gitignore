@@ -40,4 +40,4 @@ target/
 build/
 out/
 .gradle/
-
+.env
