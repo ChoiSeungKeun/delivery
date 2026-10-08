@@ -3,6 +3,7 @@ package com.example.delivery.global.exception;
 import com.example.delivery.global.response.ApiResponse;
 import com.example.delivery.global.response.ValidationError;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -59,6 +60,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(HttpRequestMethodNotSupportedException e) {
         return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.getStatus())
                 .body(ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException e) {
+        log.warn("Data integrity violation: {}", e.getMostSpecificCause().getMessage());
+
+        return ResponseEntity.status(ErrorCode.DATA_CONFLICT.getStatus())
+                .body(ApiResponse.fail(ErrorCode.DATA_CONFLICT));
     }
 
     @ExceptionHandler(Exception.class)

@@ -15,7 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -37,8 +43,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest
-@Import(GlobalExceptionHandlerTest.TestController.class)
+@WebMvcTest(GlobalExceptionHandlerTest.TestController.class)
+@Import({GlobalExceptionHandlerTest.TestController.class, GlobalExceptionHandlerTest.TestSecurityConfig.class})
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {
 
@@ -209,6 +215,43 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.errors").doesNotExist());;
     }
 
+    // handleDataIntegrity Test
+    @Test
+    @DisplayName("DataIntegrityViolationException 발생 시, 409와 DATA_CONFLICT 코드와 메시지를 담은 실패 응답을 반환한다")
+    void handleDataIntegrity_response() throws Exception {
+        // given
+        String url = "/test/data-integrity";
+
+        // when
+        ResultActions result = mockMvc.perform(get(url));
+
+        // then
+        result.andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(ErrorCode.DATA_CONFLICT.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.DATA_CONFLICT.getMessage()))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("DataIntegrityViolationException 발생 시, 로그에 원인을 기록하고 제약 조건 등 내부 정보를 응답에 노출하지 않는다")
+    void handleDataIntegrity_logAndNoLeak(CapturedOutput output) throws Exception {
+        // given
+        String url = "/test/data-integrity";
+
+        // when
+        ResultActions result = mockMvc.perform(get(url));
+
+        // then
+        assertThat(output.getOut() + output.getErr())
+                .contains("Data integrity violation")
+                .contains("uk_user_login_id");
+        assertThat(result.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .doesNotContain("uk_user_login_id")
+                .doesNotContain("duplicate key");
+    }
+
     // handleUnexpected Test
     @Test
     @DisplayName("예상하지 못한 예외 발생 시, 500과 INTERNAL_SERVER_ERROR 코드를 담은 실패 응답을 반환한다")
@@ -273,6 +316,18 @@ class GlobalExceptionHandlerTest {
         }
     }
 
+    @TestConfiguration
+    static class TestSecurityConfig {
+
+        @Bean
+        SecurityFilterChain permitAllFilterChain(HttpSecurity http) throws Exception {
+            return http
+                    .csrf(AbstractHttpConfigurer::disable)
+                    .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                    .build();
+        }
+    }
+
     @RestController
     static class TestController {
 
@@ -299,6 +354,12 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/param")
         ApiResponse<Void> requiredParam(@RequestParam String keyword) {
             return ApiResponse.ok("성공");
+        }
+
+        @GetMapping("/test/data-integrity")
+        String dataIntegrity() {
+            throw new DataIntegrityViolationException("could not execute statement",
+                    new IllegalStateException("duplicate key value violates unique constraint uk_user_login_id"));
         }
 
         @GetMapping("/test/unexpected")
