@@ -3,6 +3,7 @@ package com.example.delivery.user.controller;
 import com.example.delivery.global.exception.BusinessException;
 import com.example.delivery.global.exception.ErrorCode;
 import com.example.delivery.user.dto.UserJoinRequest;
+import com.example.delivery.user.entity.UserRole;
 import com.example.delivery.user.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class UserControllerTest {
     void join_success() throws Exception {
         // given
         String body = """
-                { "loginId": "user01", "password": "password123" }
+                { "loginId": "user01", "password": "password123", "role": "CUSTOMER" }
                 """;
 
         // when
@@ -54,7 +55,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(jsonPath("$.errors").doesNotExist());
 
-        verify(userService).join(new UserJoinRequest("user01", "password123"));
+        verify(userService).join(new UserJoinRequest("user01", "password123", UserRole.CUSTOMER));
     }
 
     @Test
@@ -62,7 +63,7 @@ class UserControllerTest {
     void join_invalidLoginId() throws Exception {
         // given
         String body = """
-                { "loginId": "abc", "password": "password123" }
+                { "loginId": "abc", "password": "password123", "role": "CUSTOMER" }
                 """;
 
         // when
@@ -86,7 +87,7 @@ class UserControllerTest {
     void join_invalidPassword() throws Exception {
         // given
         String body = """
-                { "loginId": "user01", "password": "pass123" }
+                { "loginId": "user01", "password": "pass123", "role": "CUSTOMER" }
                 """;
 
         // when
@@ -106,7 +107,31 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("로그인 ID와 비밀번호가 누락된 요청이면, 400과 두 필드의 오류를 반환하고 서비스는 호출되지 않는다")
+    @DisplayName("role이 누락된 요청이라면, 400과 INVALID_INPUT 코드와 role 필드 오류를 반환하고 서비스는 호출되지 않는다")
+    void join_missingRole() throws Exception {
+        // given
+        String body = """
+                { "loginId": "user01", "password": "password123" }
+                """;
+
+        // when
+        ResultActions result = mockMvc.perform(post(JOIN_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+
+        // then
+        result.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT.getCode()))
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("role"))
+                .andExpect(jsonPath("$.errors[0].reason").value("회원 역할은 필수입니다."));
+
+        verify(userService, never()).join(any());
+    }
+
+    @Test
+    @DisplayName("필수 값이 모두 누락된 요청이면, 400과 세 필드의 오류를 반환하고 서비스는 호출되지 않는다")
     void join_missingFields() throws Exception {
         // given
         String body = "{}";
@@ -119,9 +144,10 @@ class UserControllerTest {
         // then
         result.andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT.getCode()))
-                .andExpect(jsonPath("$.errors.length()").value(2))
+                .andExpect(jsonPath("$.errors.length()").value(3))
                 .andExpect(jsonPath("$.errors[?(@.field == 'loginId')].reason").value("로그인 ID는 필수입니다."))
-                .andExpect(jsonPath("$.errors[?(@.field == 'password')].reason").value("비밀번호는 필수입니다."));
+                .andExpect(jsonPath("$.errors[?(@.field == 'password')].reason").value("비밀번호는 필수입니다."))
+                .andExpect(jsonPath("$.errors[?(@.field == 'role')].reason").value("회원 역할은 필수입니다."));
 
         verify(userService, never()).join(any());
     }
@@ -151,10 +177,11 @@ class UserControllerTest {
     void join_duplicateLoginId() throws Exception {
         // given
         String body = """
-                { "loginId": "user01", "password": "password123" }
+                { "loginId": "user01", "password": "password123", "role": "CUSTOMER" }
                 """;
         willThrow(new BusinessException(ErrorCode.DUPLICATE_LOGIN_ID))
-                .given(userService).join(new UserJoinRequest("user01", "password123"));
+                .given(userService)
+                .join(new UserJoinRequest("user01", "password123", UserRole.CUSTOMER));
 
         // when
         ResultActions result = mockMvc.perform(post(JOIN_URL)

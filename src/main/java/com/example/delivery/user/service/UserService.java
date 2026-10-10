@@ -4,7 +4,6 @@ import com.example.delivery.global.exception.BusinessException;
 import com.example.delivery.global.exception.ErrorCode;
 import com.example.delivery.user.dto.UserJoinRequest;
 import com.example.delivery.user.entity.User;
-import com.example.delivery.user.entity.UserRole;
 import com.example.delivery.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,7 +27,7 @@ public class UserService {
         User user = User.builder()
                 .loginId(request.loginId())
                 .password(passwordEncoder.encode(request.password()))
-                .role(UserRole.CUSTOMER)
+                .role(request.role())
                 .build();
 
         userRepository.save(user);

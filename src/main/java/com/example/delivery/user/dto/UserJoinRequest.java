@@ -1,6 +1,8 @@
 package com.example.delivery.user.dto;
 
+import com.example.delivery.user.entity.UserRole;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record UserJoinRequest(
@@ -10,6 +12,9 @@ public record UserJoinRequest(
 
         @NotBlank(message = "비밀번호는 필수입니다.")
         @Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다.")
-        String password
+        String password,
+
+        @NotNull(message = "회원 역할은 필수입니다.")
+        UserRole role
 ) {
 }

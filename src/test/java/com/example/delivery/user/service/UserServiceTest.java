@@ -35,10 +35,10 @@ class UserServiceTest {
     UserService userService;
 
     @Test
-    @DisplayName("중복되지 않은 로그인 ID로 회원가입 시, 비밀번호를 암호화하여 CUSTOMER 권한의 회원을 저장한다")
+    @DisplayName("중복되지 않은 로그인 ID로 회원가입 시, 비밀번호를 암호화하여 요청한 역할의 회원을 저장한다")
     void join_success() {
         // given
-        UserJoinRequest request = new UserJoinRequest("user01", "password123");
+        UserJoinRequest request = new UserJoinRequest("user01", "password123", UserRole.OWNER);
         given(userRepository.existsByLoginId("user01")).willReturn(false);
         given(passwordEncoder.encode("password123")).willReturn("encodedPassword");
 
@@ -52,14 +52,14 @@ class UserServiceTest {
         User saved = captor.getValue();
         assertThat(saved.getLoginId()).isEqualTo("user01");
         assertThat(saved.getPassword()).isEqualTo("encodedPassword");
-        assertThat(saved.getRole()).isEqualTo(UserRole.CUSTOMER);
+        assertThat(saved.getRole()).isEqualTo(UserRole.OWNER);
     }
 
     @Test
     @DisplayName("회원가입 시, 원본 비밀번호는 저장되지 않고 암호화된 비밀번호만 저장된다")
     void join_passwordIsNotStoredAsPlainText() {
         // given
-        UserJoinRequest request = new UserJoinRequest("user01", "password123");
+        UserJoinRequest request = new UserJoinRequest("user01", "password123", UserRole.CUSTOMER);
         given(userRepository.existsByLoginId("user01")).willReturn(false);
         given(passwordEncoder.encode("password123")).willReturn("encodedPassword");
 
@@ -76,7 +76,7 @@ class UserServiceTest {
     @DisplayName("이미 가입된 로그인 ID로 회원가입 시, DUPLICATE_LOGIN_ID BusinessException이 발생하고 회원은 저장되지 않는다")
     void join_duplicateLoginId() {
         // given
-        UserJoinRequest request = new UserJoinRequest("user01", "password123");
+        UserJoinRequest request = new UserJoinRequest("user01", "password123", UserRole.CUSTOMER);
         given(userRepository.existsByLoginId("user01")).willReturn(true);
 
         // when & then

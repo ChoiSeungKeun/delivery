@@ -1,6 +1,5 @@
 package com.example.delivery.user.entity;
 
-import com.example.delivery.global.entity.BaseEntity;
 import com.example.delivery.global.entity.SoftDeletableEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
