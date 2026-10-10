@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 
 @Component
@@ -63,6 +65,14 @@ public class JwtProvider {
 
     public UserRole getRole(String token) {
         return UserRole.valueOf(parse(token).get(CLAIM_ROLE, String.class));
+    }
+
+    public LocalDateTime getExpiration(String token) {
+        Date expiration = parse(token).getExpiration();
+
+        return expiration.toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
     }
 
     private String createToken(String loginId, UserRole role, TokenType type, long expirationMillis) {
