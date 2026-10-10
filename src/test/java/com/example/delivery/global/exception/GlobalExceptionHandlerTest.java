@@ -18,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -196,6 +197,25 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.errors[0].reason").value("필수 파라미터입니다."));
     }
 
+    // handleAccessDenied Test
+    @Test
+    @DisplayName("AccessDeniedException 발생 시, 403과 FORBIDDEN 코드와 메시지를 담은 실패 응답을 반환한다")
+    void handleAccessDenied() throws Exception {
+        // given
+        String url = "/test/access-denied";
+
+        // when
+        ResultActions result = mockMvc.perform(get(url));
+
+        // then
+        result.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(ErrorCode.FORBIDDEN.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.FORBIDDEN.getMessage()))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
     // handleMethodNotAllowed Test
     @Test
     @DisplayName("지원하지 않는 HTTP 메서드 요청 시, 405와 METHOD_NOT_ALLOWED 코드와 메시지를 담은 실패 응답을 반환한다")
@@ -354,6 +374,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/param")
         ApiResponse<Void> requiredParam(@RequestParam String keyword) {
             return ApiResponse.ok("성공");
+        }
+
+        @GetMapping("/test/access-denied")
+        String accessDenied() {
+            throw new AccessDeniedException("권한 없음 상세");
         }
 
         @GetMapping("/test/data-integrity")
