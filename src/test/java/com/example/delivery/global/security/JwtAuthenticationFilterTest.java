@@ -1,5 +1,7 @@
 package com.example.delivery.global.security;
 
+import com.example.delivery.global.exception.ErrorCode;
+import com.example.delivery.global.exception.JwtAuthenticationException;
 import com.example.delivery.user.entity.User;
 import com.example.delivery.user.entity.UserRole;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,6 +30,7 @@ class JwtAuthenticationFilterTest {
     @Mock
     CustomUserDetailsService userDetailsService;
 
+    private final MockHttpServletRequest request = new MockHttpServletRequest();
     private final MockHttpServletResponse response = new MockHttpServletResponse();
     private final MockFilterChain chain = new MockFilterChain();
 
@@ -36,7 +40,6 @@ class JwtAuthenticationFilterTest {
     }
 
     private void doFilter(String authorization) throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
         if (authorization != null) {
             request.addHeader("Authorization", authorization);
         }
@@ -48,7 +51,6 @@ class JwtAuthenticationFilterTest {
     void validToken_setsAuthentication() throws Exception {
         // given
         User user = User.builder().loginId("user01").password("encoded").role(UserRole.OWNER).build();
-        given(jwtProvider.validateAccessToken("token")).willReturn(true);
         given(jwtProvider.getLoginId("token")).willReturn("user01");
         given(userDetailsService.loadUserByUsername("user01")).willReturn(new CustomUserDetails(user));
 
@@ -60,6 +62,8 @@ class JwtAuthenticationFilterTest {
         assertThat(authentication).isNotNull();
         assertThat(authentication.getName()).isEqualTo("user01");
         assertThat(authentication.getAuthorities()).extracting(Object::toString).containsExactly("ROLE_OWNER");
+        assertThat(request.getAttribute(JwtAuthenticationFilter.ERROR_ATTRIBUTE)).isNull();
+
     }
 
     @Test
@@ -72,32 +76,34 @@ class JwtAuthenticationFilterTest {
 
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(request.getAttribute(JwtAuthenticationFilter.ERROR_ATTRIBUTE)).isNull();
         assertThat(chain.getRequest()).isNotNull();
         verifyNoInteractions(jwtProvider, userDetailsService);
     }
 
     @Test
-    @DisplayName("검증에 실패한 토큰이면, 인증 없이 다음 필터로 넘어가고 회원 조회는 하지 않는다")
-    void invalidToken_passesWithoutAuthentication() throws Exception {
+    @DisplayName("검증에 실패한 토큰이면, 실패 사유를 요청에 남기고 인증 없이 다음 필터로 넘어가며 회원 조회는 하지 않는다")
+    void invalidToken_setsErrorAttribute() throws Exception {
         // given
-        given(jwtProvider.validateAccessToken("invalid-token")).willReturn(false);
+        willThrow(new JwtAuthenticationException(ErrorCode.EXPIRED_TOKEN))
+                .given(jwtProvider).verifyAccessToken("expired-token");
 
         // when
-        doFilter("Bearer invalid-token");
+        doFilter("Bearer expired-token");
 
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(request.getAttribute(JwtAuthenticationFilter.ERROR_ATTRIBUTE)).isEqualTo(ErrorCode.EXPIRED_TOKEN);
         assertThat(chain.getRequest()).isNotNull();
         verifyNoInteractions(userDetailsService);
     }
 
     @Test
-    @DisplayName("탈퇴한 회원의 토큰이면, 인증 없이 다음 필터로 넘어간다")
-    void deletedUser_passesWithoutAuthentication() throws Exception {
+    @DisplayName("탈퇴한 회원의 토큰이면, INVALID_TOKEN을 요청에 남기고 인증 없이 다음 필터로 넘어간다")
+    void deletedUser_setsErrorAttribute() throws Exception {
         // given
         User deleted = User.builder().loginId("user01").password("encoded").role(UserRole.OWNER).build();
         deleted.delete(1L);
-        given(jwtProvider.validateAccessToken("valid-token")).willReturn(true);
         given(jwtProvider.getLoginId("valid-token")).willReturn("user01");
         given(userDetailsService.loadUserByUsername("user01")).willReturn(new CustomUserDetails(deleted));
 
@@ -106,6 +112,7 @@ class JwtAuthenticationFilterTest {
 
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(request.getAttribute(JwtAuthenticationFilter.ERROR_ATTRIBUTE)).isEqualTo(ErrorCode.INVALID_TOKEN);
         assertThat(chain.getRequest()).isNotNull();
     }
 }

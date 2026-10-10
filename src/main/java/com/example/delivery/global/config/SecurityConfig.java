@@ -1,5 +1,7 @@
 package com.example.delivery.global.config;
 
+import com.example.delivery.global.security.JwtAccessDeniedHandler;
+import com.example.delivery.global.security.JwtAuthenticationEntryPoint;
 import com.example.delivery.global.security.JwtAuthenticationFilter;
 import com.example.delivery.global.security.JwtProvider;
 import org.springframework.context.annotation.Bean;
@@ -23,13 +25,19 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtProvider jwtProvider,
-                                           UserDetailsService userDetailsService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                           JwtProvider jwtProvider,
+                                           UserDetailsService userDetailsService,
+                                           JwtAuthenticationEntryPoint authenticationEntryPoint,
+                                           JwtAccessDeniedHandler accessDeniedHandler) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/users/join").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()

@@ -1,5 +1,7 @@
 package com.example.delivery.global.security;
 
+import com.example.delivery.global.exception.ErrorCode;
+import com.example.delivery.global.exception.JwtAuthenticationException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +21,8 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    public static final String ERROR_ATTRIBUTE = "jwtErrorCode";
+
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtProvider jwtProvider;
@@ -29,29 +33,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = resolveToken(request);
 
-        if (token != null
-                && SecurityContextHolder.getContext().getAuthentication() == null
-                && jwtProvider.validateAccessToken(token)) {
-            authenticate(request, token);
+        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            try {
+                jwtProvider.verifyAccessToken(token);
+                authenticate(request, token);
+            } catch (JwtAuthenticationException e) {
+                SecurityContextHolder.clearContext();
+                request.setAttribute(ERROR_ATTRIBUTE, e.getErrorCode());
+            }
         }
 
         filterChain.doFilter(request, response);
     }
 
     private void authenticate(HttpServletRequest request, String token) {
+        UserDetails userDetails;
         try {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(jwtProvider.getLoginId(token));
-            if (!userDetails.isEnabled()) {
-                return;
-            }
-
-            UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken
-                    .authenticated(userDetails, null, userDetails.getAuthorities());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            userDetails = userDetailsService.loadUserByUsername(jwtProvider.getLoginId(token));
         } catch (UsernameNotFoundException e) {
-            // 토큰은 유효하지만 회원이 없는 경우: 인증하지 않고 통과시킨다.
+            throw new JwtAuthenticationException(ErrorCode.INVALID_TOKEN);
         }
+
+        if (!userDetails.isEnabled()) {
+            throw new JwtAuthenticationException(ErrorCode.INVALID_TOKEN);
+        }
+
+        UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken
+                .authenticated(userDetails, null, userDetails.getAuthorities());
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
     private String resolveToken(HttpServletRequest request) {

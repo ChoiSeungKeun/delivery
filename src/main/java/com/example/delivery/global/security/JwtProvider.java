@@ -1,7 +1,10 @@
 package com.example.delivery.global.security;
 
+import com.example.delivery.global.exception.ErrorCode;
+import com.example.delivery.global.exception.JwtAuthenticationException;
 import com.example.delivery.user.entity.UserRole;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -38,27 +41,6 @@ public class JwtProvider {
         return createToken(loginId, role, TokenType.REFRESH, refreshTokenExpiration.toMillis());
     }
 
-    public long getRefreshTokenExpirationSeconds() {
-        return refreshTokenExpiration.toSeconds();
-    }
-
-    public boolean validateAccessToken(String token) {
-        return validateToken(token, TokenType.ACCESS);
-    }
-
-    public boolean validateRefreshToken(String token) {
-        return validateToken(token, TokenType.REFRESH);
-    }
-
-    private boolean validateToken(String token, TokenType expectedType) {
-        try {
-            Claims claims = parse(token);
-            return expectedType.name().equals(claims.get(CLAIM_TYPE, String.class));
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
-        }
-    }
-
     public String getLoginId(String token) {
         return parse(token).getSubject();
     }
@@ -75,6 +57,18 @@ public class JwtProvider {
                 .toLocalDateTime();
     }
 
+    public long getRefreshTokenExpirationSeconds() {
+        return refreshTokenExpiration.toSeconds();
+    }
+
+    public void verifyAccessToken(String token) {
+        verifyToken(token, TokenType.ACCESS);
+    }
+
+    public void verifyRefreshToken(String token) {
+        verifyToken(token, TokenType.REFRESH);
+    }
+
     private String createToken(String loginId, UserRole role, TokenType type, long expirationMillis) {
         Date expiration = new Date(System.currentTimeMillis() + expirationMillis);
 
@@ -85,6 +79,21 @@ public class JwtProvider {
                 .expiration(expiration)
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
+    }
+
+    private void verifyToken(String token, TokenType expectedType) {
+        Claims claims;
+        try {
+            claims = parse(token);
+        } catch (ExpiredJwtException e) {
+            throw new JwtAuthenticationException(ErrorCode.EXPIRED_TOKEN);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new JwtAuthenticationException(ErrorCode.INVALID_TOKEN);
+        }
+
+        if (!expectedType.name().equals(claims.get(CLAIM_TYPE, String.class))) {
+            throw new JwtAuthenticationException(ErrorCode.INVALID_TOKEN);
+        }
     }
 
     /** 서명(HS256)과 만료시각을 검증하고 Claims를 반환. 검증 실패 시 JwtException. */

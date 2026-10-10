@@ -1,10 +1,13 @@
 package com.example.delivery.global.security;
 
+import com.example.delivery.global.exception.ErrorCode;
+import com.example.delivery.global.exception.JwtAuthenticationException;
 import com.example.delivery.user.entity.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -13,6 +16,8 @@ import java.util.Arrays;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtProviderTest {
 
@@ -32,6 +37,13 @@ class JwtProviderTest {
 
     private JwtProvider provider() {
         return provider(SECRET, Duration.ofMinutes(30), Duration.ofDays(14));
+    }
+
+    private void assertFailsWith(ThrowingCallable callable, ErrorCode expected) {
+        assertThatThrownBy(callable)
+                .isInstanceOf(JwtAuthenticationException.class)
+                .extracting(e -> ((JwtAuthenticationException) e).getErrorCode())
+                .isEqualTo(expected);
     }
 
     @Test
@@ -67,65 +79,62 @@ class JwtProviderTest {
     }
 
     @Test
-    @DisplayName("Access Token은 Access 검증만 통과하고, Refresh 검증은 통과하지 못한다")
-    void validate_accessToken() {
+    @DisplayName("Access Token은 Access 검증만 통과하고, Refresh 검증은 INVALID_TOKEN으로 실패한다")
+    void verify_accessToken() {
         // given
         JwtProvider provider = provider();
         String token = provider.createAccessToken("tester", UserRole.CUSTOMER);
 
         // when & then
-        assertThat(provider.validateAccessToken(token)).isTrue();
-        assertThat(provider.validateRefreshToken(token)).isFalse();
+        assertThatCode(() -> provider.verifyAccessToken(token)).doesNotThrowAnyException();
+        assertFailsWith(() -> provider.verifyRefreshToken(token), ErrorCode.INVALID_TOKEN);
     }
 
     @Test
-    @DisplayName("Refresh Token은 Refresh 검증만 통과하고, Access 검증은 통과하지 못한다")
-    void validate_refreshToken() {
+    @DisplayName("Refresh Token은 Refresh 검증만 통과하고, Access 검증은 INVALID_TOKEN으로 실패한다")
+    void verify_refreshToken() {
         // given
         JwtProvider provider = provider();
         String token = provider.createRefreshToken("tester", UserRole.CUSTOMER);
 
         // when & then
-        assertThat(provider.validateRefreshToken(token)).isTrue();
-        assertThat(provider.validateAccessToken(token)).isFalse();
+        assertThatCode(() -> provider.verifyRefreshToken(token)).doesNotThrowAnyException();
+        assertFailsWith(() -> provider.verifyAccessToken(token), ErrorCode.INVALID_TOKEN);
     }
 
     @Test
-    @DisplayName("만료된 토큰은 검증에 실패한다")
-    void validate_expiredToken() {
-        // given: 만료 시간이 이미 지난 상태로 발급되도록 음수 기간을 설정
+    @DisplayName("만료된 토큰은 EXPIRED_TOKEN으로 검증에 실패한다")
+    void verify_expiredToken() {
+        // given
         JwtProvider provider = provider(SECRET, Duration.ofSeconds(-1), Duration.ofSeconds(-1));
         String accessToken = provider.createAccessToken("tester", UserRole.CUSTOMER);
         String refreshToken = provider.createRefreshToken("tester", UserRole.CUSTOMER);
 
         // when & then
-        assertThat(provider.validateAccessToken(accessToken)).isFalse();
-        assertThat(provider.validateRefreshToken(refreshToken)).isFalse();
+        assertFailsWith(() -> provider.verifyAccessToken(accessToken), ErrorCode.EXPIRED_TOKEN);
+        assertFailsWith(() -> provider.verifyRefreshToken(refreshToken), ErrorCode.EXPIRED_TOKEN);
     }
 
     @Test
-    @DisplayName("다른 키로 서명된 토큰은 검증에 실패한다")
-    void validate_tokenSignedWithOtherKey() {
+    @DisplayName("다른 키로 서명된 토큰은 INVALID_TOKEN으로 검증에 실패한다")
+    void verify_tokenSignedWithOtherKey() {
         // given
         String token = provider(OTHER_SECRET, Duration.ofMinutes(30), Duration.ofDays(14))
                 .createAccessToken("tester", UserRole.CUSTOMER);
 
-        // when
-        boolean valid = provider().validateAccessToken(token);
-
-        // then
-        assertThat(valid).isFalse();
+        // when & then
+        assertFailsWith(() -> provider().verifyAccessToken(token), ErrorCode.INVALID_TOKEN);
     }
 
     @Test
-    @DisplayName("형식이 잘못된 토큰이나 빈 값은 예외 없이 검증에 실패한다")
-    void validate_malformedToken() {
+    @DisplayName("형식이 잘못된 토큰이나 빈 값은 INVALID_TOKEN으로 검증에 실패한다")
+    void verify_malformedToken() {
         // given
         JwtProvider provider = provider();
 
         // when & then
-        assertThat(provider.validateAccessToken("not-a-jwt")).isFalse();
-        assertThat(provider.validateAccessToken("")).isFalse();
-        assertThat(provider.validateRefreshToken(null)).isFalse();
+        assertFailsWith(() -> provider.verifyAccessToken("not-a-jwt"), ErrorCode.INVALID_TOKEN);
+        assertFailsWith(() -> provider.verifyAccessToken(""), ErrorCode.INVALID_TOKEN);
+        assertFailsWith(() -> provider.verifyRefreshToken(null), ErrorCode.INVALID_TOKEN);
     }
 }
