@@ -17,6 +17,12 @@ spring:
         jdbc:
           time_zone: Asia/Seoul
 
+  data:
+    web:
+      pageable:
+        default-page-size: 10
+        max-page-size: 10
+
 jwt:
   secret-key: ZR1oEz01qa7AKFzCfLoS8SnUvDxdNvY1GkuzJit51CB
   access-token-expiration: 30m

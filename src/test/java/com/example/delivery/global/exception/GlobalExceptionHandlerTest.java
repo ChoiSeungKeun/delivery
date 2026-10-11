@@ -26,11 +26,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -195,6 +191,27 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.errors.length()").value(1))
                 .andExpect(jsonPath("$.errors[0].field").value("keyword"))
                 .andExpect(jsonPath("$.errors[0].reason").value("필수 파라미터입니다."));
+    }
+
+    // handleTypeMismatch Test
+    @Test
+    @DisplayName("숫자여야 하는 경로 변수에 문자열(abc)이 들어오면, 400과 INVALID_INPUT 코드와 파라미터명과 메시지를 담은 실패 응답을 반환한다")
+    void handleTypeMismatch() throws Exception {
+        // given: Long 타입 경로 변수를 받는 URL
+        String url = "/test/path/abc";
+
+        // when
+        ResultActions result = mockMvc.perform(get(url));
+
+        // then
+        result.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.INVALID_INPUT.getMessage()))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("id"))
+                .andExpect(jsonPath("$.errors[0].reason").value("올바른 형식의 값이 아닙니다."));
     }
 
     // handleAccessDenied Test
@@ -373,6 +390,11 @@ class GlobalExceptionHandlerTest {
 
         @GetMapping("/test/param")
         ApiResponse<Void> requiredParam(@RequestParam String keyword) {
+            return ApiResponse.ok("성공");
+        }
+
+        @GetMapping("/test/path/{id}")
+        ApiResponse<Void> pathVariable(@PathVariable Long id) {
             return ApiResponse.ok("성공");
         }
 
